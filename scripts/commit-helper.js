@@ -1,27 +1,32 @@
 #!/usr/bin/env node
-import inquirer from 'inquirer';
-import { execSync } from 'child_process';
+const { execSync } = require('child_process');
 
-// 🔧 Configure your available modules and commit types
-const MODULES = [
-  'auth',
-  'transaction',
-  'master_data',
-  'user',
-  'report',
-  'common'
-];
-
-const TYPES = [
-  { name: 'feat     → new feature', value: 'feat' },
-  { name: 'fix      → bug fix', value: 'fix' },
-  { name: 'docs     → documentation', value: 'docs' },
-  { name: 'refactor → refactor code', value: 'refactor' },
-  { name: 'test     → test update', value: 'test' },
-  { name: 'chore    → maintenance', value: 'chore' }
-];
+async function getInquirer() {
+  const mod = await import('inquirer');
+  return mod.default || mod;
+}
 
 async function main() {
+  const inquirer = await getInquirer();
+
+  const MODULES = [
+    'auth',
+    'transaction',
+    'master_data',
+    'user',
+    'report',
+    'common'
+  ];
+
+  const TYPES = [
+    { name: 'feat     → new feature', value: 'feat' },
+    { name: 'fix      → bug fix', value: 'fix' },
+    { name: 'docs     → documentation', value: 'docs' },
+    { name: 'refactor → refactor code', value: 'refactor' },
+    { name: 'test     → test update', value: 'test' },
+    { name: 'chore    → maintenance', value: 'chore' }
+  ];
+
   console.log('\n🚀 Commit Helper - Generate Conventional Commit with User Story ID\n');
 
   const answers = await inquirer.prompt([
