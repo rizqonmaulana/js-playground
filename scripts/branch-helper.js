@@ -1,10 +1,6 @@
 #!/usr/bin/env node
-const { execSync } = require('child_process');
-
-async function getInquirer() {
-  const mod = await import('inquirer');
-  return mod.default || mod;
-}
+import inquirer from 'inquirer';
+import { execSync } from 'child_process';
 
 const BRANCH_TYPES = [
   { name: 'feat   → new functionality', value: 'feat' },
@@ -24,7 +20,8 @@ const MODULES = [
   'common'
 ];
 
-function getBranches() {
+// 📡 Get remote branches
+function getRemoteBranches() {
   try {
     const branches = execSync('git branch -r', { encoding: 'utf8' })
       .split('\n')
@@ -32,36 +29,55 @@ function getBranches() {
       .filter(b => b && !b.includes('HEAD'))
       .filter((v, i, arr) => arr.indexOf(v) === i);
 
-    console.log('Fetched remote branches:', branches);
+    console.log(`📡 Found ${branches.length} remote branches`);
     return branches.length ? branches : ['main', 'develop'];
   } catch {
-    console.error('❌ Could not fetch branches.');
+    console.error('❌ Could not fetch remote branches.');
     return ['main', 'develop'];
   }
 }
 
-function hasUpstream(branch) {
+// 💻 Get local branches
+function getLocalBranches() {
   try {
-    execSync(`git rev-parse --abbrev-ref ${branch}@{upstream}`, { stdio: 'ignore' });
-    return true;
+    const branches = execSync('git branch --format="%(refname:short)"', { encoding: 'utf8' })
+      .split('\n')
+      .map(b => b.trim())
+      .filter(b => b);
+    console.log(`💻 Found ${branches.length} local branches`);
+    return branches.length ? branches : ['main', 'develop'];
   } catch {
-    return false;
+    console.error('❌ Could not fetch local branches.');
+    return ['main', 'develop'];
   }
 }
 
 async function main() {
-  const inquirer = await getInquirer();
-
   console.log('\n🌿 Branch Helper - Create New Branch (module-first format)\n');
 
-  const remoteBranches = getBranches();
+  // 🧭 Ask whether to use local or remote branches
+  const { branchSource } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'branchSource',
+      message: 'Get branches from:',
+      choices: [
+        { name: '💻 Local branches', value: 'local' },
+        { name: '📡 Remote branches (origin/*)', value: 'remote' }
+      ],
+      default: 'local'
+    }
+  ]);
+
+  const availableBranches =
+    branchSource === 'remote' ? getRemoteBranches() : getLocalBranches();
 
   const answers = await inquirer.prompt([
     {
       type: 'list',
       name: 'source',
       message: 'Select the source branch:',
-      choices: remoteBranches
+      choices: availableBranches
     },
     {
       type: 'list',
@@ -113,18 +129,18 @@ async function main() {
   }
 
   try {
-    execSync(`git fetch origin ${source}`, { stdio: 'inherit' });
-    execSync(`git checkout ${source}`, { stdio: 'inherit' });
-
-    // 🩹 Automatically set upstream if missing
-    if (!hasUpstream(source)) {
-      console.log(`🔗 Setting upstream for '${source}'...`);
-      execSync(`git branch --set-upstream-to=origin/${source}`, { stdio: 'inherit' });
+    if (branchSource === 'remote') {
+      // 🌍 Remote branch workflow
+      execSync(`git fetch origin ${source}`, { stdio: 'inherit' });
+      execSync(`git checkout -B ${source} origin/${source}`, { stdio: 'inherit' });
+      execSync(`git pull`, { stdio: 'inherit' });
+    } else {
+      // 💻 Local branch workflow (no pull)
+      execSync(`git checkout ${source}`, { stdio: 'inherit' });
     }
 
-    execSync(`git pull`, { stdio: 'inherit' });
+    // 🌱 Create new branch from current source
     execSync(`git checkout -b ${branchName}`, { stdio: 'inherit' });
-
     console.log(`\n🌱 New branch '${branchName}' created from '${source}'`);
   } catch (error) {
     console.error('\n❌ Failed to create branch. Please check your repo status.');
