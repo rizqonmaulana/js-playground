@@ -1,6 +1,10 @@
 #!/usr/bin/env node
-import inquirer from 'inquirer';
-import { execSync } from 'child_process';
+const { execSync } = require('child_process');
+
+async function getInquirer() {
+  const mod = await import('inquirer');
+  return mod.default || mod;
+}
 
 const BRANCH_TYPES = [
   { name: 'feat   → new functionality', value: 'feat' },
@@ -27,14 +31,27 @@ function getBranches() {
       .map(b => b.trim().replace('origin/', ''))
       .filter(b => b && !b.includes('HEAD'))
       .filter((v, i, arr) => arr.indexOf(v) === i);
-    return branches;
+
+    console.log('Fetched remote branches:', branches);
+    return branches.length ? branches : ['main', 'develop'];
   } catch {
     console.error('❌ Could not fetch branches.');
     return ['main', 'develop'];
   }
 }
 
+function hasUpstream(branch) {
+  try {
+    execSync(`git rev-parse --abbrev-ref ${branch}@{upstream}`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
+  const inquirer = await getInquirer();
+
   console.log('\n🌿 Branch Helper - Create New Branch (module-first format)\n');
 
   const remoteBranches = getBranches();
@@ -90,18 +107,27 @@ async function main() {
     }
   ]);
 
-  if (confirm) {
-    try {
-      execSync(`git fetch origin ${source}`, { stdio: 'inherit' });
-      execSync(`git checkout ${source}`, { stdio: 'inherit' });
-      execSync(`git pull`, { stdio: 'inherit' });
-      execSync(`git checkout -b ${branchName}`, { stdio: 'inherit' });
-      console.log(`\n🌱 New branch '${branchName}' created from '${source}'`);
-    } catch (error) {
-      console.error('\n❌ Failed to create branch. Please check your repo status.');
-    }
-  } else {
+  if (!confirm) {
     console.log('❎ Branch creation canceled.');
+    return;
+  }
+
+  try {
+    execSync(`git fetch origin ${source}`, { stdio: 'inherit' });
+    execSync(`git checkout ${source}`, { stdio: 'inherit' });
+
+    // 🩹 Automatically set upstream if missing
+    if (!hasUpstream(source)) {
+      console.log(`🔗 Setting upstream for '${source}'...`);
+      execSync(`git branch --set-upstream-to=origin/${source}`, { stdio: 'inherit' });
+    }
+
+    execSync(`git pull`, { stdio: 'inherit' });
+    execSync(`git checkout -b ${branchName}`, { stdio: 'inherit' });
+
+    console.log(`\n🌱 New branch '${branchName}' created from '${source}'`);
+  } catch (error) {
+    console.error('\n❌ Failed to create branch. Please check your repo status.');
   }
 }
 
