@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import inquirer from 'inquirer';
-import { execSync } from 'child_process';
 
+const { execSync } = require('child_process');
+
+// Branch type options
 const BRANCH_TYPES = [
   { name: 'feat   → new functionality', value: 'feat' },
   { name: 'fix    → bug fix', value: 'fix' },
@@ -11,6 +12,7 @@ const BRANCH_TYPES = [
   { name: 'hotfix → urgent production fix', value: 'hotfix' }
 ];
 
+// Module list
 const MODULES = [
   'auth',
   'transaction',
@@ -20,64 +22,57 @@ const MODULES = [
   'common'
 ];
 
-// 📡 Get remote branches
-function getRemoteBranches() {
+// Generic branch getter
+function getBranches(cmd, removeOriginPrefix = false) {
   try {
-    const branches = execSync('git branch -r', { encoding: 'utf8' })
+    return execSync(cmd, { encoding: 'utf8' })
       .split('\n')
-      .map(b => b.trim().replace('origin/', ''))
+      .map(b => {
+        b = b.trim();
+        if (removeOriginPrefix) b = b.replace('origin/', '');
+        return b;
+      })
       .filter(b => b && !b.includes('HEAD'))
       .filter((v, i, arr) => arr.indexOf(v) === i);
-
-    console.log(`📡 Found ${branches.length} remote branches`);
-    return branches.length ? branches : ['main', 'develop'];
   } catch {
-    console.error('❌ Could not fetch remote branches.');
-    return ['main', 'develop'];
-  }
-}
-
-// 💻 Get local branches
-function getLocalBranches() {
-  try {
-    const branches = execSync('git branch --format="%(refname:short)"', { encoding: 'utf8' })
-      .split('\n')
-      .map(b => b.trim())
-      .filter(b => b);
-    console.log(`💻 Found ${branches.length} local branches`);
-    return branches.length ? branches : ['main', 'develop'];
-  } catch {
-    console.error('❌ Could not fetch local branches.');
+    console.error('❌ Could not fetch branches.');
     return ['main', 'develop'];
   }
 }
 
 async function main() {
+  // Dynamic import for Inquirer (ESM-only)
+  const inquirer = (await import('inquirer')).default;
+
   console.log('\n🌿 Branch Helper - Create New Branch (module-first format)\n');
 
-  // 🧭 Ask whether to use local or remote branches
-  const { branchSource } = await inquirer.prompt([
+  // Ask local or remote selection
+  const { branchSourceType } = await inquirer.prompt([
     {
       type: 'list',
-      name: 'branchSource',
-      message: 'Get branches from:',
+      name: 'branchSourceType',
+      message: 'Select where to pick the source branch from:',
       choices: [
-        { name: '💻 Local branches', value: 'local' },
-        { name: '📡 Remote branches (origin/*)', value: 'remote' }
-      ],
-      default: 'local'
+        { name: 'Local branches', value: 'local' },
+        { name: 'Remote branches', value: 'remote' }
+      ]
     }
   ]);
 
-  const availableBranches =
-    branchSource === 'remote' ? getRemoteBranches() : getLocalBranches();
+  // Load branches based on choice
+  let branches = [];
+  if (branchSourceType === 'local') {
+    branches = getBranches('git branch', false).map(b => b.replace('* ', ''));
+  } else {
+    branches = getBranches('git branch -r', true);
+  }
 
   const answers = await inquirer.prompt([
     {
       type: 'list',
       name: 'source',
-      message: 'Select the source branch:',
-      choices: availableBranches
+      message: `Select the ${branchSourceType} source branch:`,
+      choices: branches
     },
     {
       type: 'list',
@@ -106,14 +101,16 @@ async function main() {
   ]);
 
   const { source, type, module, story, desc } = answers;
+
   const branchName = `${type}/${module}.US-${story}.${desc}`
     .toLowerCase()
     .replace(/\s+/g, '-');
 
   console.log('\n✅ Generated branch name:');
   console.log(`\n   ${branchName}\n`);
-  console.log(`📦 Source branch: ${source}\n`);
+  console.log(`📦 Source branch: ${source} (${branchSourceType})\n`);
 
+  // Confirmation
   const { confirm } = await inquirer.prompt([
     {
       type: 'confirm',
@@ -128,19 +125,16 @@ async function main() {
     return;
   }
 
+  // EXECUTE GIT COMMANDS
   try {
-    if (branchSource === 'remote') {
-      // 🌍 Remote branch workflow
+    if (branchSourceType === 'remote') {
       execSync(`git fetch origin ${source}`, { stdio: 'inherit' });
-      execSync(`git checkout -B ${source} origin/${source}`, { stdio: 'inherit' });
-      execSync(`git pull`, { stdio: 'inherit' });
-    } else {
-      // 💻 Local branch workflow (no pull)
-      execSync(`git checkout ${source}`, { stdio: 'inherit' });
     }
 
-    // 🌱 Create new branch from current source
+    execSync(`git checkout ${source}`, { stdio: 'inherit' });
+    execSync(`git pull`, { stdio: 'inherit' });
     execSync(`git checkout -b ${branchName}`, { stdio: 'inherit' });
+
     console.log(`\n🌱 New branch '${branchName}' created from '${source}'`);
   } catch (error) {
     console.error('\n❌ Failed to create branch. Please check your repo status.');
