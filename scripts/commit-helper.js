@@ -21,10 +21,11 @@ async function main() {
   const TYPES = [
     { name: 'feat     → new feature', value: 'feat' },
     { name: 'fix      → bug fix', value: 'fix' },
-    { name: 'docs     → documentation', value: 'docs' },
+    { name: 'docs     → documentation only', value: 'docs' },
     { name: 'refactor → refactor code', value: 'refactor' },
-    { name: 'test     → test update', value: 'test' },
-    { name: 'chore    → maintenance', value: 'chore' }
+    { name: 'test     → adding or refactoring tests', value: 'test' },
+    { name: 'chore    → maintenance / tooling', value: 'chore' },
+    { name: 'hotfix   → urgent production fix', value: 'hotfix' },
   ];
 
   console.log('\n🚀 Commit Helper - Generate Conventional Commit with User Story ID\n');

@@ -4,7 +4,7 @@ const { execSync } = require('child_process');
 
 // Branch type options
 const BRANCH_TYPES = [
-  { name: 'feat   → new functionality', value: 'feat' },
+  { name: 'feat   → new feature', value: 'feat' },
   { name: 'fix    → bug fix', value: 'fix' },
   { name: 'chore  → maintenance / tooling', value: 'chore' },
   { name: 'docs   → documentation only', value: 'docs' },
